@@ -307,3 +307,8 @@ def remove_resource(resource_id):
     # For local development, just return success
     app.logger.info(f"Mock resource removed: {resource_id}")
     return True
+
+
+def read_jwt_key():
+    """Mock function to read the JWT key."""
+    app.config["JWT_KEY"] = "mock-jwt-key-for-testing"

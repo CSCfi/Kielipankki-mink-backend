@@ -30,7 +30,9 @@ class Cache():
 
     def connect(self):
         """Connect to the memcached socket and set client."""
-        socket_path = Path(app.instance_path) / app.config.get("MEMCACHED_SOCKET")
+        socket_path = app.config.get(
+            "MEMCACHED_SOCKET"
+        )  # Path(app.instance_path) / app.config.get("MEMCACHED_SOCKET")
         try:
             self.client = Client(f"unix:{socket_path}", serde=serde.pickle_serde)
             # Check if connection is working

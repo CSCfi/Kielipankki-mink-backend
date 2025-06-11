@@ -19,6 +19,7 @@ from mink.sb_auth.login import read_jwt_key
 def create_app(debug=False):
     """Instanciate app."""
     app = Flask(__name__)
+    app.secret_key = 'no_big_secret'
 
     # Enable CORS
     CORS(app, supports_credentials=True)

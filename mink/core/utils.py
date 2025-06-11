@@ -167,11 +167,12 @@ def standardize_config(config, corpus_id):
     # Make corpus protected
     config_yaml["korp"] = {"protected": True}
     # Make Strix corpora appear in correct mode
-    config_yaml["sbx_strix"] = {"modes": [{"name": "mink"}]}
-    # Add '<text>:misc.id as _id' to annotations for Strix' sake
-    if "export" in config_yaml and "annotations" in config_yaml["export"]:
-        if "<text>:misc.id as _id" not in config_yaml["export"]["annotations"]:
-            config_yaml["export"]["annotations"].append("<text>:misc.id as _id")
+    # Next lines commented out to remove strix from configs
+    # config_yaml["sbx_strix"] = {"modes": [{"name": "mink"}]}
+    # # Add '<text>:misc.id as _id' to annotations for Strix' sake
+    # if "export" in config_yaml and "annotations" in config_yaml["export"]:
+    #     if "<text>:misc.id as _id" not in config_yaml["export"]["annotations"]:
+    #         config_yaml["export"]["annotations"].append("<text>:misc.id as _id")
 
     return yaml.dump(config_yaml, sort_keys=False, allow_unicode=True), name
 

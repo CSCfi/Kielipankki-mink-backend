@@ -19,7 +19,6 @@ from mink.sb_auth.login import read_jwt_key
 def create_app(debug=False):
     """Instanciate app."""
     app = Flask(__name__)
-    app.secret_key = 'no_big_secret'
 
     # Enable CORS
     CORS(app, supports_credentials=True)
@@ -34,6 +33,9 @@ def create_app(debug=False):
     instance_config_path = Path(app.instance_path) / "config.py"
     if instance_config_path.is_file():
         app.config.from_pyfile(str(instance_config_path))
+
+    # This apparently needs to be set too?
+    app.secret_key = app.config.get("MINK_SECRET_KEY")
 
     # Make sure required config variables are set
     for var in ("SPARV_HOST", "SPARV_USER"):

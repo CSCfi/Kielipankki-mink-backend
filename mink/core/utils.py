@@ -166,11 +166,15 @@ def standardize_config(config, corpus_id):
 
     # Make corpus protected and add Korp config directory
     config_yaml["korp"] = {"protected": True}
+    if app.config.get("KORP_REMOTE_HOST"):
+        config_yaml["korp"]["remote_host"] = app.config.get("KORP_REMOTE_HOST")
     if app.config.get("KORP_CONFIG_DIR"):
         config_yaml["korp"]["config_dir"] = app.config.get("KORP_CONFIG_DIR")
 
     # Add CWB (Corpus Workbench) configuration
     cwb_config = {}
+    if app.config.get("CWB_REMOTE_HOST"):
+        cwb_config["remote_host"] = app.config.get("CWB_REMOTE_HOST")
     if app.config.get("CWB_REMOTE_REGISTRY_DIR"):
         cwb_config["remote_registry_dir"] = app.config.get("CWB_REMOTE_REGISTRY_DIR")
     if app.config.get("CWB_REMOTE_DATA_DIR"):

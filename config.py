@@ -61,7 +61,9 @@ SPARV_NOHUP_FILE = "mink.out"                # File collecting Sparv output for 
 SPARV_TMP_RUN_SCRIPT = "run_sparv.sh"          # Temporary Sparv run script created for every job
 
 # Korp and CWB configuration
+KORP_REMOTE_HOST = ""  # Define this in instance/config.py! Remote host for Korp SQL installations
 KORP_CONFIG_DIR = ""  # Define this in instance/config.py! Path to Korp config directory
+CWB_REMOTE_HOST = ""  # Define this in instance/config.py! Remote host for CWB corpus installations
 CWB_REMOTE_REGISTRY_DIR = ""  # Define this in instance/config.py! Path to CWB registry directory
 CWB_REMOTE_DATA_DIR = ""  # Define this in instance/config.py! Path to CWB data directory
 

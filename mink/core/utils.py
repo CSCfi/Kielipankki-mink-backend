@@ -164,8 +164,19 @@ def standardize_config(config, corpus_id):
     config_yaml.pop("install", None)
     config_yaml.pop("uninstall", None)
 
-    # Make corpus protected
+    # Make corpus protected and add Korp config directory
     config_yaml["korp"] = {"protected": True}
+    if app.config.get("KORP_CONFIG_DIR"):
+        config_yaml["korp"]["config_dir"] = app.config.get("KORP_CONFIG_DIR")
+
+    # Add CWB (Corpus Workbench) configuration
+    cwb_config = {}
+    if app.config.get("CWB_REMOTE_REGISTRY_DIR"):
+        cwb_config["remote_registry_dir"] = app.config.get("CWB_REMOTE_REGISTRY_DIR")
+    if app.config.get("CWB_REMOTE_DATA_DIR"):
+        cwb_config["remote_data_dir"] = app.config.get("CWB_REMOTE_DATA_DIR")
+    if cwb_config:
+        config_yaml["cwb"] = cwb_config
     # Make Strix corpora appear in correct mode
     # Next lines commented out to remove strix from configs
     # config_yaml["sbx_strix"] = {"modes": [{"name": "mink"}]}

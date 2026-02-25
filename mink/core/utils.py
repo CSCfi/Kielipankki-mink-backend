@@ -165,7 +165,10 @@ def standardize_config(config, corpus_id):
     config_yaml.pop("uninstall", None)
 
     # Make corpus protected and add Korp config directory
-    config_yaml["korp"] = {"protected": True}
+    config_yaml["korp"] = {
+        "protected": True,
+        "modes": [{"name": "mink"}]
+    }
     if app.config.get("KORP_REMOTE_HOST"):
         config_yaml["korp"]["remote_host"] = app.config.get("KORP_REMOTE_HOST")
     if app.config.get("KORP_CONFIG_DIR"):

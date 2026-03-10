@@ -380,18 +380,13 @@ def sparv_languages():
                               return_code="failed_listing_languages"), 500
 
     if include_annotators:
-        try:
-            all_annotators = job.list_annotators()
-        except Exception as e:
-            return utils.response("Failed listing annotators", err=True, info=str(e),
-                                  return_code="failed_listing_annotators"), 500
         for lang in languages:
-            code = lang["code"]
-            lang["annotators"] = {
-                module: info
-                for module, info in all_annotators.items()
-                if any(code in (f.get("language") or []) for f in info.get("functions", {}).values())
-            }
+            try:
+                lang_job = jobs.DefaultJob(language=lang["code"])
+                lang["annotators"] = lang_job.list_annotators()
+            except Exception as e:
+                return utils.response("Failed listing annotators", err=True, info=str(e),
+                                      return_code="failed_listing_annotators"), 500
 
     return utils.response("Listing languages available in Sparv", languages=languages,
                           return_code="listing_languages")

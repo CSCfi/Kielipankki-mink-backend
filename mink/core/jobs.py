@@ -582,28 +582,26 @@ class DefaultJob():
         return languages
 
     def list_annotators(self):
-        """List annotators available in Sparv, using Swedish as the seed language.
+        """List annotators available in Sparv for this job's language.
 
-        Runs 'sparv modules --annotators --json' in the Swedish temp corpus dir. Each
-        annotator function includes a 'language' list covering all languages it supports,
-        so the caller can filter the result for any language. Result is cached in memcached.
+        Runs 'sparv modules --annotators --json' in the language's temp corpus dir.
+        Result is cached in memcached per language.
         """
         from flask import g  # noqa: PLC0415
 
-        cached = g.cache.get_annotators()
+        cached = g.cache.get_annotators(self.lang)
         if cached is not None:
             return cached
 
-        swe_dir = str(sparv_utils.get_corpus_dir("swe", default_dir=True))
-        p = utils.ssh_run(f"mkdir -p {shlex.quote(swe_dir)} && "
-                          f"echo 'metadata:\n  language: swe' > "
-                          f"{shlex.quote(swe_dir + '/' + self.config_file)}")
+        p = utils.ssh_run(f"mkdir -p {shlex.quote(self.remote_corpus_dir)} && "
+                          f"echo 'metadata:\n  language: {self.lang}' > "
+                          f"{shlex.quote(self.remote_corpus_dir + '/' + self.config_file)}")
         if p.stderr:
             raise Exception(f"Failed to list annotators! {p.stderr.decode()}")
 
         sparv_env = app.config.get("SPARV_ENVIRON")
         sparv_command = f"{app.config.get('SPARV_COMMAND')} modules --annotators --json"
-        p = utils.ssh_run(f"cd {shlex.quote(swe_dir)} && {sparv_env} {sparv_command}")
+        p = utils.ssh_run(f"cd {shlex.quote(self.remote_corpus_dir)} && {sparv_env} {sparv_command}")
 
         stdout = p.stdout.decode() if p.stdout else ""
         if p.returncode != 0:
@@ -614,7 +612,7 @@ class DefaultJob():
         if json_start == -1:
             return {}
         data = json.loads(stdout[json_start:]).get("annotators", {})
-        g.cache.set_annotators(data)
+        g.cache.set_annotators(self.lang, data)
         return data
 
     def list_exports(self):

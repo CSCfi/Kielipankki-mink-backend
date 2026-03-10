@@ -111,13 +111,13 @@ class Cache():
         else:
             del g.resource_dict[job]
 
-    def get_annotators(self):
-        """Get cached Sparv annotator info from memcached, or None if unavailable."""
+    def get_annotators(self, language):
+        """Get cached Sparv annotator info for a language from memcached, or None if unavailable."""
         if self.client is not None:
-            return self.client.get("sparv_annotators")
+            return self.client.get(f"sparv_annotators_{language}")
         return None
 
-    def set_annotators(self, value):
-        """Store Sparv annotator info in memcached."""
+    def set_annotators(self, language, value):
+        """Store Sparv annotator info for a language in memcached."""
         if self.client is not None:
-            self.client.set("sparv_annotators", value)
+            self.client.set(f"sparv_annotators_{language}", value)

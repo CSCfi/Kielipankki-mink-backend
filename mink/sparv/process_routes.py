@@ -366,13 +366,33 @@ def make_status_response(info, admin=False):
 
 @bp.route("/sparv-languages", methods=["GET"])
 def sparv_languages():
-    """List languages available in Sparv."""
+    """List languages available in Sparv.
+
+    Optional query parameter:
+    - annotators=true: include per-language annotator information in the response.
+    """
+    include_annotators = (request.args.get("annotators") or "").lower() == "true"
     try:
         job = jobs.DefaultJob()
         languages = job.list_languages()
     except Exception as e:
         return utils.response("Failed listing languages", err=True, info=str(e),
                               return_code="failed_listing_languages"), 500
+
+    if include_annotators:
+        try:
+            all_annotators = job.list_annotators()
+        except Exception as e:
+            return utils.response("Failed listing annotators", err=True, info=str(e),
+                                  return_code="failed_listing_annotators"), 500
+        for lang in languages:
+            code = lang["code"]
+            lang["annotators"] = {
+                module: info
+                for module, info in all_annotators.items()
+                if any(code in (f.get("language") or []) for f in info.get("functions", {}).values())
+            }
+
     return utils.response("Listing languages available in Sparv", languages=languages,
                           return_code="listing_languages")
 

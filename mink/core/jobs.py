@@ -542,6 +542,9 @@ class Job():
         return True, sparv_output
 
 
+_annotators_cache = None
+
+
 class DefaultJob():
     """A default job item for running generic Sparv commands like `sparv run -l`."""
 
@@ -580,6 +583,40 @@ class DefaultJob():
             if matchobj:
                 languages.append({"name": matchobj.group(1), "code": matchobj.group(2)})
         return languages
+
+    def list_annotators(self):
+        """List all available annotators across all languages.
+
+        Uses 'language: __all__' in the corpus config to bypass per-language filtering,
+        returning every annotator Sparv knows about along with the languages each supports.
+        The result is cached globally since it doesn't depend on corpus language.
+        """
+        global _annotators_cache
+        if _annotators_cache is not None:
+            return _annotators_cache
+
+        all_lang_dir = str(sparv_utils.get_corpus_dir("__all__", default_dir=True))
+        config_path = all_lang_dir + "/" + self.config_file
+        p = utils.ssh_run(f"mkdir -p {shlex.quote(all_lang_dir)} && "
+                          f"echo 'metadata:\n  language: __all__' > {shlex.quote(config_path)}")
+        if p.stderr:
+            raise Exception(f"Failed to list annotators! {p.stderr.decode()}")
+
+        sparv_env = app.config.get("SPARV_ENVIRON")
+        sparv_command = f"{app.config.get('SPARV_COMMAND')} modules --annotators --json"
+        p = utils.ssh_run(f"cd {shlex.quote(all_lang_dir)} && {sparv_env} {sparv_command}")
+
+        if p.returncode != 0:
+            stderr = p.stderr.decode() if p.stderr else ""
+            raise exceptions.JobError(f"Failed to run Sparv! {stderr}")
+
+        stdout = p.stdout.decode() if p.stdout else "{}"
+        json_start = stdout.find("{")
+        if json_start == -1:
+            return {}
+        data = json.loads(stdout[json_start:]).get("annotators", {})
+        _annotators_cache = data
+        return data
 
     def list_exports(self):
         """List the available exports for the current language."""

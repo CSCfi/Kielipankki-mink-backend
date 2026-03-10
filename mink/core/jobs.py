@@ -606,11 +606,11 @@ class DefaultJob():
         sparv_command = f"{app.config.get('SPARV_COMMAND')} modules --annotators --json"
         p = utils.ssh_run(f"cd {shlex.quote(all_lang_dir)} && {sparv_env} {sparv_command}")
 
+        stdout = p.stdout.decode() if p.stdout else ""
         if p.returncode != 0:
             stderr = p.stderr.decode() if p.stderr else ""
-            raise exceptions.JobError(f"Failed to run Sparv! {stderr}")
+            raise exceptions.JobError(f"Failed to run Sparv! stderr={stderr!r} stdout={stdout!r}")
 
-        stdout = p.stdout.decode() if p.stdout else "{}"
         json_start = stdout.find("{")
         if json_start == -1:
             return {}

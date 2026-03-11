@@ -554,8 +554,13 @@ class DefaultJob():
         self.config_file = app.config.get("SPARV_CORPUS_CONFIG")
 
     def list_languages(self):
-        """List the languages available in Sparv."""
-        # Create and corpus dir with config file on Sparv server
+        """List the languages available in Sparv. Result is cached in memcached."""
+        from flask import g  # noqa: PLC0415
+
+        cached = g.cache.get_languages()
+        if cached is not None:
+            return cached
+
         p = utils.ssh_run(f"mkdir -p {shlex.quote(self.remote_corpus_dir)} && "
                           f"echo 'metadata:\n  language: {self.lang}' > "
                           f"{shlex.quote(self.remote_corpus_dir + '/' + self.config_file)}")
@@ -579,40 +584,48 @@ class DefaultJob():
             matchobj = re.match(r"(.+?)\s+(\S+)$", line)
             if matchobj:
                 languages.append({"name": matchobj.group(1), "code": matchobj.group(2)})
+        g.cache.set_languages(languages)
         return languages
 
     def list_annotators(self):
-        """List annotators available in Sparv for this job's language.
+        """List all annotators available in Sparv.
 
-        Runs 'sparv modules --annotators --json' in the language's temp corpus dir.
-        Result is cached in memcached per language.
+        Uses a seed language that activates all relevant annotator modules. Each
+        annotator function carries a 'language' list, so callers can filter per
+        language without needing a separate SSH call per language.
+        Result is cached in memcached.
         """
         from flask import g  # noqa: PLC0415
 
-        cached = g.cache.get_annotators(self.lang)
+        cached = g.cache.get_annotators()
         if cached is not None:
             return cached
 
-        p = utils.ssh_run(f"mkdir -p {shlex.quote(self.remote_corpus_dir)} && "
-                          f"echo 'metadata:\n  language: {self.lang}' > "
-                          f"{shlex.quote(self.remote_corpus_dir + '/' + self.config_file)}")
-        if p.stderr:
-            raise Exception(f"Failed to list annotators! {p.stderr.decode()}")
-
+        seed_langs = app.config.get("SPARV_ANNOTATOR_SEED_LANGUAGES", ["fin"])
         sparv_env = app.config.get("SPARV_ENVIRON")
         sparv_command = f"{app.config.get('SPARV_COMMAND')} modules --annotators --json"
-        p = utils.ssh_run(f"cd {shlex.quote(self.remote_corpus_dir)} && {sparv_env} {sparv_command}")
 
-        stdout = p.stdout.decode() if p.stdout else ""
-        if p.returncode != 0:
-            stderr = p.stderr.decode() if p.stderr else ""
-            raise exceptions.JobError(f"Failed to run Sparv! stderr={stderr!r} stdout={stdout!r}")
+        data = {}
+        for seed_lang in seed_langs:
+            seed_dir = str(sparv_utils.get_corpus_dir(seed_lang, default_dir=True))
+            p = utils.ssh_run(f"mkdir -p {shlex.quote(seed_dir)} && "
+                              f"echo 'metadata:\n  language: {seed_lang}' > "
+                              f"{shlex.quote(seed_dir + '/' + self.config_file)}")
+            if p.stderr:
+                raise Exception(f"Failed to list annotators for seed '{seed_lang}'! {p.stderr.decode()}")
 
-        json_start = stdout.find("{")
-        if json_start == -1:
-            return {}
-        data = json.loads(stdout[json_start:]).get("annotators", {})
-        g.cache.set_annotators(self.lang, data)
+            p = utils.ssh_run(f"cd {shlex.quote(seed_dir)} && {sparv_env} {sparv_command}")
+            stdout = p.stdout.decode() if p.stdout else ""
+            if p.returncode != 0:
+                stderr = p.stderr.decode() if p.stderr else ""
+                raise exceptions.JobError(f"Failed to run Sparv for seed '{seed_lang}'! "
+                                          f"stderr={stderr!r} stdout={stdout!r}")
+
+            json_start = stdout.find("{")
+            if json_start != -1:
+                data.update(json.loads(stdout[json_start:]).get("annotators", {}))
+
+        g.cache.set_annotators(data)
         return data
 
     def list_exports(self):

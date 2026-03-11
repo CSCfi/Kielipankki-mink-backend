@@ -380,19 +380,18 @@ def sparv_languages():
                               return_code="failed_listing_languages"), 500
 
     if include_annotators:
+        try:
+            all_annotators = job.list_annotators()
+        except Exception as e:
+            return utils.response("Failed listing annotators", err=True, info=str(e),
+                                  return_code="failed_listing_annotators"), 500
         for lang in languages:
-            try:
-                lang_job = jobs.DefaultJob(language=lang["code"])
-                all_annotators = lang_job.list_annotators()
-            except Exception as e:
-                return utils.response("Failed listing annotators", err=True, info=str(e),
-                                      return_code="failed_listing_annotators"), 500
-            # Keep only modules with at least one language-specific function,
-            # and return just the module name and description.
+            code = lang["code"]
+            # Keep only modules that explicitly declare support for this language.
             lang["annotators"] = {
                 module: info.get("description", "")
                 for module, info in all_annotators.items()
-                if any(f.get("language") for f in info.get("functions", {}).values())
+                if any(code in (f.get("language") or []) for f in info.get("functions", {}).values())
             }
 
     return utils.response("Listing languages available in Sparv", languages=languages,

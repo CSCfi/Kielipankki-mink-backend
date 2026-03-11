@@ -387,12 +387,23 @@ def sparv_languages():
                                   return_code="failed_listing_annotators"), 500
         for lang in languages:
             code = lang["code"]
-            # Keep only modules that explicitly declare support for this language.
-            lang["annotators"] = {
-                module: info.get("description", "")
-                for module, info in all_annotators.items()
-                if any(code in (f.get("language") or []) for f in info.get("functions", {}).values())
-            }
+            lang["annotators"] = {}
+            for module, info in all_annotators.items():
+                # Collect annotations from functions that explicitly support this language.
+                annotations = {}
+                for f_info in info.get("functions", {}).values():
+                    if code not in (f_info.get("language") or []):
+                        continue
+                    for ann_name, ann_info in f_info.get("annotations", {}).items():
+                        entry = {"description": ann_info.get("description", "")}
+                        if cls := ann_info.get("class"):
+                            entry["class"] = cls
+                        annotations[ann_name] = entry
+                if annotations:
+                    lang["annotators"][module] = {
+                        "description": info.get("description", ""),
+                        "annotations": annotations,
+                    }
 
     return utils.response("Listing languages available in Sparv", languages=languages,
                           return_code="listing_languages")

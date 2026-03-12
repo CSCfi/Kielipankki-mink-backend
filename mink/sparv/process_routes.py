@@ -366,13 +366,45 @@ def make_status_response(info, admin=False):
 
 @bp.route("/sparv-languages", methods=["GET"])
 def sparv_languages():
-    """List languages available in Sparv."""
+    """List languages available in Sparv.
+
+    Optional query parameter:
+    - annotators=true: include per-language annotator information in the response.
+    """
+    include_annotators = (request.args.get("annotators") or "").lower() == "true"
     try:
         job = jobs.DefaultJob()
         languages = job.list_languages()
     except Exception as e:
         return utils.response("Failed listing languages", err=True, info=str(e),
                               return_code="failed_listing_languages"), 500
+
+    if include_annotators:
+        try:
+            all_annotators = job.list_annotators()
+        except Exception as e:
+            return utils.response("Failed listing annotators", err=True, info=str(e),
+                                  return_code="failed_listing_annotators"), 500
+        for lang in languages:
+            code = lang["code"]
+            lang["annotators"] = {}
+            for module, info in all_annotators.items():
+                # Collect annotations from functions that explicitly support this language.
+                annotations = {}
+                for f_info in info.get("functions", {}).values():
+                    if code not in (f_info.get("language") or []):
+                        continue
+                    for ann_name, ann_info in f_info.get("annotations", {}).items():
+                        entry = {"description": ann_info.get("description", "")}
+                        if cls := ann_info.get("class"):
+                            entry["class"] = cls
+                        annotations[ann_name] = entry
+                if annotations:
+                    lang["annotators"][module] = {
+                        "description": info.get("description", ""),
+                        "annotations": annotations,
+                    }
+
     return utils.response("Listing languages available in Sparv", languages=languages,
                           return_code="listing_languages")
 

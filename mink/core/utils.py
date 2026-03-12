@@ -167,8 +167,20 @@ def standardize_config(config, corpus_id):
     # Make corpus protected and add Korp config directory
     config_yaml["korp"] = {
         "protected": True,
-        "modes": [{"name": "mink"}]
+        "modes": [{"name": "mink"}],
+        # Include all annotations even if they lack a Korp preset file on the server
+        "keep_undefined_annotations": True,
     }
+
+    # Enable dependency tree visualization if dep parse annotations are present
+    export_annotations = config_yaml.get("export", {}).get("annotations", [])
+    has_dephead = any("dephead" in str(a) for a in export_annotations)
+    has_deprel = any("deprel" in str(a) for a in export_annotations)
+    if has_dephead and has_deprel:
+        config_yaml["korp"]["deptree"] = {
+            "head_attr": "dephead",
+            "rel_attr": "deprel",
+        }
     if app.config.get("KORP_REMOTE_HOST"):
         config_yaml["korp"]["remote_host"] = app.config.get("KORP_REMOTE_HOST")
     if app.config.get("KORP_CONFIG_DIR"):

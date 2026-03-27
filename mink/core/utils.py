@@ -209,7 +209,7 @@ def standardize_config(config, corpus_id):
     # are encoded in the CWB corpus and exposed in the Korp corpus config.
     export_anns = config_yaml.get("export", {}).get("annotations", [])
     if export_anns:
-        cwb_config["annotations"] = export_anns
+        cwb_config["annotations"] = list(export_anns)
     if cwb_config:
         config_yaml["cwb"] = cwb_config
     # Make Strix corpora appear in correct mode

@@ -172,14 +172,25 @@ def standardize_config(config, corpus_id):
         "keep_undefined_annotations": True,
     }
 
-    # Enable dependency tree visualization if dep parse annotations are present
+    # Enable dependency tree visualization if dep parse annotations are present.
+    # Extract the CWB attribute name: if the annotation has an "as <name>" alias, use that;
+    # otherwise fall back to the part after the last dot (module namespace stripped).
+    def _cwb_attr_name(annotation_str: str) -> str:
+        if " as " in annotation_str:
+            return annotation_str.split(" as ")[-1].strip()
+        return annotation_str.split(".")[-1].strip()
+
     export_annotations = config_yaml.get("export", {}).get("annotations", [])
-    has_dephead = any("dephead" in str(a) for a in export_annotations)
-    has_deprel = any("deprel" in str(a) for a in export_annotations)
-    if has_dephead and has_deprel:
+    dephead_attr = next(
+        (_cwb_attr_name(str(a)) for a in export_annotations if "dephead" in str(a)), None
+    )
+    deprel_attr = next(
+        (_cwb_attr_name(str(a)) for a in export_annotations if "deprel" in str(a)), None
+    )
+    if dephead_attr and deprel_attr:
         config_yaml["korp"]["deptree"] = {
-            "head_attr": "dephead",
-            "rel_attr": "deprel",
+            "head_attr": dephead_attr,
+            "rel_attr": deprel_attr,
         }
     if app.config.get("KORP_REMOTE_HOST"):
         config_yaml["korp"]["remote_host"] = app.config.get("KORP_REMOTE_HOST")
@@ -194,6 +205,11 @@ def standardize_config(config, corpus_id):
         cwb_config["remote_registry_dir"] = app.config.get("CWB_REMOTE_REGISTRY_DIR")
     if app.config.get("CWB_REMOTE_DATA_DIR"):
         cwb_config["remote_data_dir"] = app.config.get("CWB_REMOTE_DATA_DIR")
+    # Forward export.annotations to cwb.annotations so that all annotated attributes
+    # are encoded in the CWB corpus and exposed in the Korp corpus config.
+    export_anns = config_yaml.get("export", {}).get("annotations", [])
+    if export_anns:
+        cwb_config["annotations"] = export_anns
     if cwb_config:
         config_yaml["cwb"] = cwb_config
     # Make Strix corpora appear in correct mode

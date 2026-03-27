@@ -227,7 +227,13 @@ class Job():
         sparv_env = app.config.get("SPARV_ENVIRON")
         sparv_command = f"{app.config.get('SPARV_COMMAND')} {app.config.get('SPARV_INSTALL')} {' '.join(sparv_installs)}"
 
-        script_content = f"{sparv_env} nohup time -p sh -c {shlex.quote(sparv_command)} >{self.nohupfile} 2>&1 &\necho $!"
+        # Delete cached korp config so Sparv regenerates it from the current config.yaml,
+        # even when annotations haven't changed (Sparv/Snakemake would otherwise skip it).
+        korp_config_file = shlex.quote(f"korp.config/{self.id}.yaml")
+        script_content = (
+            f"rm -f {korp_config_file} && "
+            f"{sparv_env} nohup time -p sh -c {shlex.quote(sparv_command)} >{self.nohupfile} 2>&1 &\necho $!"
+        )
         self.started = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
         p = utils.ssh_run(f"cd {shlex.quote(self.remote_corpus_dir)} && "
                           f"echo {shlex.quote(script_content)} > {shlex.quote(self.runscript)} && "

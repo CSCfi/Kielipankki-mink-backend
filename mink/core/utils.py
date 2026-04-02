@@ -192,6 +192,30 @@ def standardize_config(config, corpus_id):
             "head_attr": dephead_attr,
             "rel_attr": deprel_attr,
         }
+
+    # Build annotation_definitions to override preset matching for certain attributes.
+    # The Korp config exporter matches CWB attribute names to preset YAML files by name;
+    # we need to redirect some attributes to different presets or inline definitions to
+    # avoid mismatches (e.g. CWB attr "pos" would otherwise match the Swedish SUC pos.yaml,
+    # and "deprel" has no preset but should use deprel_trankit.yaml).
+    annotation_defs = {}
+    for ann_str in export_annotations:
+        ann = str(ann_str)
+        # The Sparv annotation name is everything before " as " (or the whole string)
+        sparv_name = ann.split(" as ")[0].strip()
+        cwb_name = _cwb_attr_name(ann)
+        # Map trankit deprel → deprel_trankit preset (UD dependency relations dropdown)
+        if "trankit.deprel" in ann and cwb_name == "deprel":
+            annotation_defs[sparv_name] = "deprel_trankit"
+        # Map trankit pos → inline label to avoid the Swedish SUC pos.yaml preset
+        elif "trankit.pos" in ann and cwb_name == "pos":
+            annotation_defs[sparv_name] = {
+                "label": {"eng": "part of speech", "fin": "sanaluokka", "swe": "ordklass"},
+                "order": 2,
+            }
+    if annotation_defs:
+        config_yaml["korp"]["annotation_definitions"] = annotation_defs
+
     if app.config.get("KORP_REMOTE_HOST"):
         config_yaml["korp"]["remote_host"] = app.config.get("KORP_REMOTE_HOST")
     if app.config.get("KORP_CONFIG_DIR"):

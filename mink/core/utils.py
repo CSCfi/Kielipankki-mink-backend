@@ -170,6 +170,8 @@ def standardize_config(config, corpus_id):
         "modes": [{"name": "mink"}],
         # Include all annotations even if they lack a Korp preset file on the server
         "keep_undefined_annotations": True,
+        # Derive Korp UI languages from the language codes present in the corpus name
+        "languages": list(name.keys()) if name else ["eng"],
     }
 
     # Extract the CWB attribute name from an annotation string: if it has an "as <name>"

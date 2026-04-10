@@ -278,6 +278,7 @@ class Job():
             raise exceptions.JobError(f"Failed to uninstall corpus from Korp: {stderr}")
 
         self.installed_korp = False
+        self._invalidate_korp_cache()
 
     def install_strix(self):
         """Install a corpus in Strix."""

@@ -8,6 +8,7 @@ import subprocess
 from typing import Optional
 
 import dateutil
+import requests
 from flask import current_app as app
 
 from mink.core import exceptions, registry, utils
@@ -367,6 +368,8 @@ class Job():
         _warnings, errors, misc = self.get_output()
         if (self.progress_output == 100):
             if self.status.is_running(self.current_process):
+                if self.current_process == ProcessName.korp.name:
+                    self._invalidate_korp_cache()
                 self.set_status(Status.done)
         else:
             if errors:
@@ -376,6 +379,24 @@ class Job():
             app.logger.debug("Sparv process was not completed successfully.")
             self.set_status(Status.error)
         return False
+
+    def _invalidate_korp_cache(self):
+        """Tell the Korp backend to check for updated corpora and refresh its cache.
+
+        This is called after a Korp install completes so that the newly installed
+        corpus is immediately visible and its protected status is recognized.
+        """
+        korp_url = app.config.get("KORP_BACKEND_URL")
+        if not korp_url:
+            app.logger.warning("KORP_BACKEND_URL not configured, skipping Korp cache invalidation")
+            return
+        cache_url = f"{korp_url.rstrip('/')}/cache"
+        try:
+            response = requests.get(cache_url, timeout=30)
+            response.raise_for_status()
+            app.logger.info(f"Korp cache invalidated after installing corpus '{self.id}': {response.json()}")
+        except Exception as e:
+            app.logger.warning(f"Failed to invalidate Korp cache after installing corpus '{self.id}': {e}")
 
     def get_output(self):
         """Check latest Sparv output of this job by reading the nohup file."""

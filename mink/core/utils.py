@@ -197,11 +197,17 @@ def standardize_config(config, corpus_id):
         # Map trankit deprel → deprel_trankit preset (UD dependency relations dropdown)
         if "trankit.deprel" in ann and cwb_name == "deprel":
             annotation_defs[sparv_name] = "deprel_trankit"
-        # Map trankit pos → inline label to avoid the Swedish SUC pos.yaml preset
-        elif "trankit.pos" in ann and cwb_name == "pos":
+        # Map any annotation exported as "pos" → inline label to avoid the Swedish SUC pos.yaml preset
+        elif cwb_name == "pos":
             annotation_defs[sparv_name] = {
                 "label": {"eng": "part of speech", "fin": "sanaluokka", "swe": "ordklass"},
                 "order": 2,
+            }
+        # Show dephead (sentence-relative head index) instead of hiding it
+        elif cwb_name == "dephead":
+            annotation_defs[sparv_name] = {
+                "label": {"eng": "dependency head", "fin": "pääsana", "swe": "dephead"},
+                "order": 5,
             }
     if annotation_defs:
         config_yaml["korp"]["annotation_definitions"] = annotation_defs

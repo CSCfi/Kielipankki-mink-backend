@@ -182,13 +182,14 @@ def create_resource(auth_token, resource_id, resource_type=None):
         raise Exception(message)
 
 
-def remove_resource(resource_id) -> bool:
+def remove_resource(auth_token, resource_id) -> bool:
     """Remove a resource from sb-auth."""
     url = app.config.get("SBAUTH_URL") + resource_id
     api_key = app.config.get("SBAUTH_API_KEY")
-    headers = {"Authorization": f"apikey {api_key}"}
+    headers = {"Authorization": f"apikey {api_key}", "Content-Type": "application/json"}
+    data = {"jwt": auth_token}
     try:
-        r = requests.delete(url, headers=headers)
+        r = requests.delete(url, headers=headers, data=json.dumps(data))
         status = r.status_code
     except Exception as e:
         raise e

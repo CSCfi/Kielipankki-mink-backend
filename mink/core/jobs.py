@@ -8,6 +8,7 @@ import subprocess
 from typing import Optional
 
 import dateutil
+import requests
 from flask import current_app as app
 
 from mink.core import exceptions, registry, utils
@@ -227,7 +228,15 @@ class Job():
         sparv_env = app.config.get("SPARV_ENVIRON")
         sparv_command = f"{app.config.get('SPARV_COMMAND')} {app.config.get('SPARV_INSTALL')} {' '.join(sparv_installs)}"
 
-        script_content = f"{sparv_env} nohup time -p sh -c {shlex.quote(sparv_command)} >{self.nohupfile} 2>&1 &\necho $!"
+        # Delete the cached Korp config export and install marker so Sparv regenerates
+        # and reinstalls them from the current config.yaml, even when annotations haven't
+        # changed (Sparv/Snakemake would otherwise consider both up-to-date and skip them).
+        korp_config_export = shlex.quote(f"export/korp.config/{self.id}.yaml")
+        korp_install_marker = shlex.quote("sparv-workdir/korp.install_config_marker")
+        script_content = (
+            f"rm -f {korp_config_export} {korp_install_marker} && "
+            f"{sparv_env} nohup time -p sh -c {shlex.quote(sparv_command)} >{self.nohupfile} 2>&1 &\necho $!"
+        )
         self.started = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
         p = utils.ssh_run(f"cd {shlex.quote(self.remote_corpus_dir)} && "
                           f"echo {shlex.quote(script_content)} > {shlex.quote(self.runscript)} && "
@@ -269,6 +278,7 @@ class Job():
             raise exceptions.JobError(f"Failed to uninstall corpus from Korp: {stderr}")
 
         self.installed_korp = False
+        self._invalidate_korp_cache()
 
     def install_strix(self):
         """Install a corpus in Strix."""
@@ -359,6 +369,8 @@ class Job():
         _warnings, errors, misc = self.get_output()
         if (self.progress_output == 100):
             if self.status.is_running(self.current_process):
+                if self.current_process == ProcessName.korp.name:
+                    self._invalidate_korp_cache()
                 self.set_status(Status.done)
         else:
             if errors:
@@ -368,6 +380,24 @@ class Job():
             app.logger.debug("Sparv process was not completed successfully.")
             self.set_status(Status.error)
         return False
+
+    def _invalidate_korp_cache(self):
+        """Tell the Korp backend to check for updated corpora and refresh its cache.
+
+        This is called after a Korp install completes so that the newly installed
+        corpus is immediately visible and its protected status is recognized.
+        """
+        korp_url = app.config.get("KORP_BACKEND_URL")
+        if not korp_url:
+            app.logger.warning("KORP_BACKEND_URL not configured, skipping Korp cache invalidation")
+            return
+        cache_url = f"{korp_url.rstrip('/')}/cache"
+        try:
+            response = requests.get(cache_url, timeout=30)
+            response.raise_for_status()
+            app.logger.info(f"Korp cache invalidated after installing corpus '{self.id}': {response.json()}")
+        except Exception as e:
+            app.logger.warning(f"Failed to invalidate Korp cache after installing corpus '{self.id}': {e}")
 
     def get_output(self):
         """Check latest Sparv output of this job by reading the nohup file."""

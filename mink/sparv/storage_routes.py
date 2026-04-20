@@ -63,7 +63,7 @@ def create_corpus(user: dict, auth_token: str):
         except Exception as err:
             app.logger.error(f"Failed to remove partially uploaded corpus data for '{resource_id}'. {err}")
         try:
-            login.remove_resource(resource_id)
+            login.remove_resource(auth_token, resource_id)
         except Exception as err:
             app.logger.error(f"Failed to remove corpus '{resource_id}' from auth system. {err}")
         try:
@@ -101,7 +101,7 @@ def list_korp_corpora(corpora: list):
 
 @bp.route("/remove-corpus", methods=["DELETE"])
 @login.login()
-def remove_corpus(resource_id: str):
+def remove_corpus(resource_id: str, auth_token: str):
     """Remove corpus."""
     # Get job
     info_obj = registry.get(resource_id)
@@ -130,7 +130,7 @@ def remove_corpus(resource_id: str):
 
     try:
         # Remove from auth system
-        login.remove_resource(resource_id)
+        login.remove_resource(auth_token, resource_id)
     except Exception as e:
         return utils.response(f"Failed to remove corpus '{resource_id}' from authentication system", err=True,
                               info=str(e), return_code="failed_removing_auth"), 500

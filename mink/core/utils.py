@@ -137,7 +137,11 @@ def config_compatible(config, source_file):
 
 
 def standardize_config(config, corpus_id):
-    """Set the correct corpus ID and remove the compression setting in the corpus config."""
+    """Sanitize user-provided config: set corpus ID, strip runtime sections, remove compression.
+
+    The returned YAML contains only user-facing settings (metadata, import, export, etc.).
+    Runtime settings (korp, cwb, etc.) are provided by Sparv's config_default.yaml.
+    """
     config_yaml = yaml.load(config, Loader=yaml.FullLoader)
 
     # Set correct corpus ID
@@ -163,46 +167,6 @@ def standardize_config(config, corpus_id):
     # Remove all install and uninstall targets (this is handled in the installation step instead)
     config_yaml.pop("install", None)
     config_yaml.pop("uninstall", None)
-
-    # Make corpus protected and add Korp config directory
-    config_yaml["korp"] = {
-        "protected": True,
-        "modes": [{"name": "mink"}],
-        # Include all annotations even if they lack a Korp preset file on the server
-        "keep_undefined_annotations": True,
-    }
-
-    # Enable dependency tree visualization if dep parse annotations are present
-    export_annotations = config_yaml.get("export", {}).get("annotations", [])
-    has_dephead = any("dephead" in str(a) for a in export_annotations)
-    has_deprel = any("deprel" in str(a) for a in export_annotations)
-    if has_dephead and has_deprel:
-        config_yaml["korp"]["deptree"] = {
-            "head_attr": "dephead",
-            "rel_attr": "deprel",
-        }
-    if app.config.get("KORP_REMOTE_HOST"):
-        config_yaml["korp"]["remote_host"] = app.config.get("KORP_REMOTE_HOST")
-    if app.config.get("KORP_CONFIG_DIR"):
-        config_yaml["korp"]["config_dir"] = app.config.get("KORP_CONFIG_DIR")
-
-    # Add CWB (Corpus Workbench) configuration
-    cwb_config = {}
-    if app.config.get("CWB_REMOTE_HOST"):
-        cwb_config["remote_host"] = app.config.get("CWB_REMOTE_HOST")
-    if app.config.get("CWB_REMOTE_REGISTRY_DIR"):
-        cwb_config["remote_registry_dir"] = app.config.get("CWB_REMOTE_REGISTRY_DIR")
-    if app.config.get("CWB_REMOTE_DATA_DIR"):
-        cwb_config["remote_data_dir"] = app.config.get("CWB_REMOTE_DATA_DIR")
-    if cwb_config:
-        config_yaml["cwb"] = cwb_config
-    # Make Strix corpora appear in correct mode
-    # Next lines commented out to remove strix from configs
-    # config_yaml["sbx_strix"] = {"modes": [{"name": "mink"}]}
-    # # Add '<text>:misc.id as _id' to annotations for Strix' sake
-    # if "export" in config_yaml and "annotations" in config_yaml["export"]:
-    #     if "<text>:misc.id as _id" not in config_yaml["export"]["annotations"]:
-    #         config_yaml["export"]["annotations"].append("<text>:misc.id as _id")
 
     return yaml.dump(config_yaml, sort_keys=False, allow_unicode=True), name
 

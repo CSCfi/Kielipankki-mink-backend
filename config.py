@@ -61,6 +61,7 @@ SPARV_NOHUP_FILE = "mink.out"                # File collecting Sparv output for 
 SPARV_TMP_RUN_SCRIPT = "run_sparv.sh"          # Temporary Sparv run script created for every job
 
 # Korp and CWB configuration
+KORP_BACKEND_URL = ""  # Define this in instance/config.py! URL to Korp backend API (e.g. "https://kielipankki.fi/korp/api8")
 KORP_REMOTE_HOST = ""  # Define this in instance/config.py! Remote host for Korp SQL installations
 KORP_CONFIG_DIR = ""  # Define this in instance/config.py! Path to Korp config directory
 CWB_REMOTE_HOST = ""  # Define this in instance/config.py! Remote host for CWB corpus installations

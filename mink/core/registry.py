@@ -30,6 +30,15 @@ def initialize():
         else:
             queue = []
 
+        # Mark as initialized BEFORE the per-file scan, and pre-populate the
+        # queue and all-resources keys so they are never observed as None.
+        # The gate must be set before the scan because infoobj.update() below
+        # writes to the cache via set_job, which re-enters initialize(); if
+        # the gate were still False at that point the scan would recurse.
+        g.cache.set_job_queue(queue)
+        g.cache.set_all_resources(all_resources)
+        g.cache.set_queue_initialized(True)
+
         # Load info instances into memory, append to queue if necessary
         for f in sorted(registry_dir.glob("*/*"), key=lambda x: x.stat().st_mtime):
             if f == queue_file:
@@ -46,9 +55,6 @@ def initialize():
                         queue.append(infoobj.job.id)
         g.cache.set_job_queue(queue)
         g.cache.set_all_resources(all_resources)
-        # Only mark as initialized once queue and resources are populated, so a
-        # concurrent request can't observe a True flag with None payloads.
-        g.cache.set_queue_initialized(True)
         app.logger.debug(f"Queue in cache: {g.cache.get_job_queue()}")
         # app.logger.debug(f"All jobs in cache: {g.cache.get_all_resources()}")
         app.logger.debug(f"Total resources in cache: {len(g.cache.get_all_resources())}")

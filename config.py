@@ -84,6 +84,11 @@ QUEUE_FILE = "queue"                 # File to store the queue priorities
 
 # Settings for queue manager
 MINK_URL = "https://ws.spraakbanken.gu.se/ws/mink"  # URL for mink API
+# Host-local URL used by queue_manager.py to call /advance-queue without
+# going through the public reverse proxy. Falls back to MINK_URL if unset.
+# Example for a deployment where Apache fronts the gunicorn unix socket on
+# the same host: "http://127.0.0.1/mink/api"
+MINK_INTERNAL_URL = ""
 CHECK_QUEUE_FREQUENCY = 20  # How often the queue will be checked for new jobs (in seconds)
 MINK_SECRET_KEY = ""  # Define this in instance/config.py!
 HEALTHCHECKS_URL = ""   # Healthchecks URL, define this in instance/config.py!

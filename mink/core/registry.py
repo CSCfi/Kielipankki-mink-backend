@@ -29,7 +29,6 @@ def initialize():
                 queue = json.loads(jsonstr) or []
         else:
             queue = []
-        g.cache.set_queue_initialized(True)
 
         # Load info instances into memory, append to queue if necessary
         for f in sorted(registry_dir.glob("*/*"), key=lambda x: x.stat().st_mtime):
@@ -47,6 +46,9 @@ def initialize():
                         queue.append(infoobj.job.id)
         g.cache.set_job_queue(queue)
         g.cache.set_all_resources(all_resources)
+        # Only mark as initialized once queue and resources are populated, so a
+        # concurrent request can't observe a True flag with None payloads.
+        g.cache.set_queue_initialized(True)
         app.logger.debug(f"Queue in cache: {g.cache.get_job_queue()}")
         # app.logger.debug(f"All jobs in cache: {g.cache.get_all_resources()}")
         app.logger.debug(f"Total resources in cache: {len(g.cache.get_all_resources())}")
@@ -66,6 +68,9 @@ def filter_resources(resource_ids: list = None) -> List[info.Info]:
     """Get info for all resources listed in 'resource_ids'."""
     filtered_resources = []
     all_resources = g.cache.get_all_resources()
+    # all_resources is None before the registry is done initializing
+    if all_resources is None:
+        return filtered_resources
     for res_id in all_resources:
         if resource_ids is not None and res_id not in resource_ids:
             continue
@@ -134,6 +139,9 @@ def get_running_waiting():
 def unqueue_inactive():
     """Unqueue jobs that are done, aborted or erroneous."""
     queue = g.cache.get_job_queue()
+    # queue is None before it is done initializing
+    if queue is None:
+        return
     old_jobs = []
     for res_id in queue:
         job = info.load_from_str(g.cache.get_job(res_id)).job

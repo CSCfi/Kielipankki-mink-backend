@@ -102,17 +102,30 @@ def list_korp_corpora(corpora: list):
 @bp.route("/remove-corpus", methods=["DELETE"])
 @login.login()
 def remove_corpus(resource_id: str, auth_token: str):
-    """Remove corpus."""
-    # Get job
-    info_obj = registry.get(resource_id)
-    if info_obj.job.installed_korp:
+    """Remove corpus.
+
+    Tolerates a missing registry entry so orphaned corpora (storage/auth exist
+    but the registry cache was lost) can still be deleted from the UI. In that
+    case Korp/Strix uninstall is skipped because we have no job state to know
+    whether either was installed; any leftover install will need separate
+    cleanup.
+    """
+    try:
+        info_obj = registry.get(resource_id)
+    except exceptions.JobNotFound:
+        info_obj = None
+        app.logger.warning(
+            f"No registry entry for '{resource_id}'; attempting orphan cleanup of storage and auth.",
+        )
+
+    if info_obj and info_obj.job.installed_korp:
         try:
             # Uninstall corpus from Korp using Sparv
             info_obj.job.uninstall_korp()
         except Exception as e:
             return utils.response(f"Failed to remove corpus '{resource_id}' from Korp", err=True, info=str(e),
                                   return_code="failed_removing_korp"), 500
-    if info_obj.job.installed_strix:
+    if info_obj and info_obj.job.installed_strix:
         try:
             # Uninstall corpus from Strix using Sparv
             info_obj.job.uninstall_strix()
@@ -136,10 +149,11 @@ def remove_corpus(resource_id: str, auth_token: str):
                               info=str(e), return_code="failed_removing_auth"), 500
 
     # Remove from Mink registry
-    try:
-        info_obj.remove()
-    except Exception as err:
-        app.logger.error(f"Failed to remove job '{resource_id}'. {err}")
+    if info_obj:
+        try:
+            info_obj.remove()
+        except Exception as err:
+            app.logger.error(f"Failed to remove job '{resource_id}'. {err}")
     return utils.response(f"Corpus '{resource_id}' successfully removed", return_code="removed_corpus")
 
 

@@ -160,9 +160,14 @@ def standardize_config(config, corpus_id):
         if not config_yaml.get("sparv", {}):
             config_yaml.pop("sparv")
 
-    # Remove settings that a Mink user is not allowed to modify
+    # Remove settings that a Mink user is not allowed to modify.
+    # `korp.annotation_definitions` is the exception: the frontend uses it to
+    # attach display labels for columns without a matching Korp preset (e.g.
+    # "TreeTagger morph" for treetagger.pos).
     config_yaml.pop("cwb", None)
-    config_yaml.pop("korp", None)
+    korp = config_yaml.pop("korp", None) or {}
+    if "annotation_definitions" in korp:
+        config_yaml["korp"] = {"annotation_definitions": korp["annotation_definitions"]}
     config_yaml.pop("sbx_strix", None)
     # Remove all install and uninstall targets (this is handled in the installation step instead)
     config_yaml.pop("install", None)

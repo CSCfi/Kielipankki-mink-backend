@@ -197,7 +197,16 @@ class Job():
         sparv_command = f"{app.config.get('SPARV_COMMAND')} {app.config.get('SPARV_RUN')} {' '.join(self.sparv_exports)}"
         if self.current_files:
             sparv_command += f" --file {' '.join(shlex.quote(f) for f in self.current_files)}"
-        script_content = f"{sparv_env} nohup time -p {sparv_command} >{self.nohupfile} 2>&1 &\necho $!"
+        # Release any stale Snakemake lock left behind by a previously aborted,
+        # crashed or power-lost run. Killing the process does not release the lock,
+        # so without this the next run fails with a LockException. 'sparv run
+        # --unlock' only unlocks and exits, so it must run as a separate step
+        # before the actual run; its output is discarded so it doesn't interfere
+        # with progress/time parsing of the nohup file. Mink's queue guarantees no
+        # other run for this corpus is in progress, so unlocking here is safe.
+        unlock_command = f"{app.config.get('SPARV_COMMAND')} run --unlock >/dev/null 2>&1"
+        run_command = f"{unlock_command}; {sparv_command}"
+        script_content = f"{sparv_env} nohup time -p sh -c {shlex.quote(run_command)} >{self.nohupfile} 2>&1 &\necho $!"
         self.started = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
         p = utils.ssh_run(f"cd {shlex.quote(self.remote_corpus_dir)} && "
                           f"echo {shlex.quote(script_content)} > {shlex.quote(self.runscript)} && "

@@ -134,7 +134,14 @@ def get_running_waiting():
     # queue is None before it is done initializing
     if queue is not None:
         for res_id in queue:
-            job = info.load_from_str(g.cache.get_job(res_id)).job
+            jobstr = g.cache.get_job(res_id)
+            # A queued id whose blob isn't in the cache is either still being
+            # loaded during init (the queue is set before every per-resource blob
+            # has been reloaded, see initialize()) or a dangling entry. Either
+            # way, skip it rather than crash; don't count it as running/waiting.
+            if jobstr is None:
+                continue
+            job = info.load_from_str(jobstr).job
             if job.status.is_running():
                 running_jobs.append(job)
             elif job.status.is_waiting():
@@ -150,7 +157,15 @@ def unqueue_inactive():
         return
     old_jobs = []
     for res_id in queue:
-        job = info.load_from_str(g.cache.get_job(res_id)).job
+        jobstr = g.cache.get_job(res_id)
+        # Skip (don't prune) entries with a missing blob: during init the queue is
+        # populated before all per-resource blobs are reloaded, so a None here can
+        # be a still-loading job, and pruning would drop it. A genuinely dangling
+        # id is inert (skipped everywhere); clean it up via the remove path or a
+        # provisioning reset of QUEUE_FILE, not here.
+        if jobstr is None:
+            continue
+        job = info.load_from_str(jobstr).job
         if job.status.is_inactive():
             old_jobs.append(res_id)
 

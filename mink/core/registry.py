@@ -53,8 +53,19 @@ def initialize():
                 if infoobj.id not in queue:
                     if not (infoobj.job.status.is_done(infoobj.job.current_process) or infoobj.job.status.is_inactive()):
                         queue.append(infoobj.job.id)
+        # Drop queued ids with no backing resource file (e.g. a stale QUEUE_FILE
+        # entry from a removal that didn't update it). The per-resource files are
+        # the source of truth — all_resources holds every id we just loaded a blob
+        # for. Without this, a dangling id survives every reload and crashes the
+        # queue iteration because its blob is never written to the cache.
+        dangling = [res_id for res_id in queue if res_id not in all_resources]
+        if dangling:
+            app.logger.warning(f"Dropping {len(dangling)} queued id(s) with no backing resource: {dangling}")
+            queue = [res_id for res_id in queue if res_id in all_resources]
         g.cache.set_job_queue(queue)
         g.cache.set_all_resources(all_resources)
+        if dangling:
+            save_priorities()  # Persist the cleaned queue so the dangling ids don't return on the next reload
         app.logger.debug(f"Queue in cache: {g.cache.get_job_queue()}")
         # app.logger.debug(f"All jobs in cache: {g.cache.get_all_resources()}")
         app.logger.debug(f"Total resources in cache: {len(g.cache.get_all_resources())}")
@@ -80,8 +91,12 @@ def filter_resources(resource_ids: list = None) -> List[info.Info]:
     for res_id in all_resources:
         if resource_ids is not None and res_id not in resource_ids:
             continue
-        infoobj = info.load_from_str(g.cache.get_job(res_id))
-        filtered_resources.append(infoobj)
+        jobstr = g.cache.get_job(res_id)
+        # Skip ids whose blob is missing from the cache (stale all_resources entry,
+        # e.g. left by a failed removal) rather than crashing the whole listing.
+        if jobstr is None:
+            continue
+        filtered_resources.append(info.load_from_str(jobstr))
     return filtered_resources
 
 def add_to_queue(job):

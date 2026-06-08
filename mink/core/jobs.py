@@ -351,7 +351,17 @@ class Job():
             return
             # raise exceptions.ProcessNotFound("Failed to abort job because no process ID was found!")
 
-        p = utils.ssh_run(f"kill -SIGTERM {self.pid}")
+        # Signal the whole process group, not just the recorded wrapper PID.
+        # self.pid is the backgrounded `nohup time -p sh -c …` wrapper; the actual
+        # Sparv/Snakemake process is a descendant, and SIGTERM to the wrapper alone
+        # leaves it orphaned and still running (holding the Snakemake lock). After
+        # the run script exits, the wrapper's process group contains only this run's
+        # process tree, so killing the group (negative PID) takes the whole tree
+        # down. The `if` guard makes an already-dead process exit 0 (clean abort).
+        p = utils.ssh_run(
+            f'pgid=$(ps -o pgid= -p {self.pid} | tr -d " "); '
+            f'if [ -n "$pgid" ]; then kill -SIGTERM -"$pgid"; fi'
+        )
         if p.returncode == 0:
             self.set_pid(None)
             self.set_status(Status.aborted)

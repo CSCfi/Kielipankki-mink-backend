@@ -43,16 +43,23 @@ def initialize():
         for f in sorted(registry_dir.glob("*/*"), key=lambda x: x.stat().st_mtime):
             if f == queue_file:
                 continue
-            if f.is_file():
+            if not f.is_file():
+                continue
+            try:
                 with f.open() as fobj:
                     infoobj = info.load_from_str(fobj.read())
-                    infoobj.update()  # Update resource in file system and add to cache
-                    all_resources.append(infoobj.id)
-                    # app.logger.debug(f"Job in cache: '{g.cache.get_job(job.id)}'")
+                infoobj.update()  # Update resource in file system and add to cache
+                all_resources.append(infoobj.id)
                 # Queue job unless it is done, aborted or erroneous
                 if infoobj.id not in queue:
                     if not (infoobj.job.status.is_done(infoobj.job.current_process) or infoobj.job.status.is_inactive()):
                         queue.append(infoobj.job.id)
+            except Exception as e:
+                # A single unreadable or half-written registry file must not abort
+                # the whole scan — that would leave all_resources empty and hide
+                # every existing corpus from the listing. Skip it and carry on.
+                app.logger.error(f"Failed to load registry file '{f}', skipping: {e}")
+                continue
         # Drop queued ids with no backing resource file (e.g. a stale QUEUE_FILE
         # entry from a removal that didn't update it). The per-resource files are
         # the source of truth — all_resources holds every id we just loaded a blob

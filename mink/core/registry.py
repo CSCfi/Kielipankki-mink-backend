@@ -56,16 +56,17 @@ def initialize():
         # Drop queued ids with no backing resource file (e.g. a stale QUEUE_FILE
         # entry from a removal that didn't update it). The per-resource files are
         # the source of truth — all_resources holds every id we just loaded a blob
-        # for. Without this, a dangling id survives every reload and crashes the
-        # queue iteration because its blob is never written to the cache.
+        # for. Without this, a dangling id survives reload and crashes the queue
+        # iteration because its blob is never written to the cache.
+        # Filter in memory only — do NOT persist here. If all_resources is empty
+        # for a bad reason (e.g. the registry dir is misconfigured/empty), every
+        # id looks dangling, and persisting would wipe a perfectly good QUEUE_FILE.
         dangling = [res_id for res_id in queue if res_id not in all_resources]
         if dangling:
-            app.logger.warning(f"Dropping {len(dangling)} queued id(s) with no backing resource: {dangling}")
+            app.logger.warning(f"Skipping {len(dangling)} queued id(s) with no backing resource this run: {dangling}")
             queue = [res_id for res_id in queue if res_id in all_resources]
         g.cache.set_job_queue(queue)
         g.cache.set_all_resources(all_resources)
-        if dangling:
-            save_priorities()  # Persist the cleaned queue so the dangling ids don't return on the next reload
         app.logger.debug(f"Queue in cache: {g.cache.get_job_queue()}")
         # app.logger.debug(f"All jobs in cache: {g.cache.get_all_resources()}")
         app.logger.debug(f"Total resources in cache: {len(g.cache.get_all_resources())}")

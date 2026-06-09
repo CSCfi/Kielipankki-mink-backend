@@ -15,7 +15,12 @@ from mink.core import exceptions, info
 
 def initialize():
     """Init the registry and job queue from the filesystem if it has not been initialized already."""
-    if not g.cache.get_queue_initialized():
+    # Gate on whether the registry data is actually present in the cache, not just
+    # on the 'queue_initialized' flag: the flag can outlive the data it guards (the
+    # flag is never reset and memcached can evict the data independently), which
+    # would otherwise leave the registry empty until a manual flush. See
+    # Cache.registry_initialized().
+    if not g.cache.registry_initialized():
         app.logger.info("Initializing queue")
         all_resources = []  # Storage for all resource IDs
         registry_dir = Path(app.instance_path) / app.config.get("REGISTRY_DIR")

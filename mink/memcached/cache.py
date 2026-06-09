@@ -53,6 +53,44 @@ class Cache():
         else:
             g.queue_initialized = bool(is_initialized)
 
+    def registry_initialized(self):
+        """Whether the resource registry has actually been loaded into the cache.
+
+        This gates registry.initialize(). It checks the real data key
+        ('all_resources') rather than the separate 'queue_initialized' flag,
+        because the two are independent memcached keys that can diverge: memcached
+        may evict the (larger) data under memory pressure while the small,
+        frequently-read flag survives, and the flag is never reset to False. Gating
+        on the flag alone therefore leaves the registry permanently empty until a
+        manual memcached flush. An empty registry is stored as '[]', so only a
+        missing key (None) means "not built" — this makes the gate self-heal after
+        an eviction by triggering a fresh filesystem scan.
+
+        Reads the key directly; must NOT call get_all_resources(), which re-enters
+        registry.initialize().
+        """
+        if self.client is not None:
+            return self.client.get("all_resources") is not None
+        # App-context fallback: the data lives in g for this request only and is
+        # rebuilt on every request, so the per-request flag is authoritative.
+        return g.queue_initialized
+
+    def invalidate_registry(self):
+        """Drop the registry gate and listing so the next access re-scans the disk.
+
+        The registry is loaded into the cache exactly once and never re-scans on
+        its own, so resource files written into REGISTRY_DIR afterwards (e.g. by
+        provisioning) stay invisible until memcached is flushed. Calling this
+        forces initialize() to run again, picking the filesystem (the source of
+        truth) back up without a full flush.
+        """
+        if self.client is not None:
+            self.client.delete("all_resources")
+            self.client.set("queue_initialized", False)
+        else:
+            g.queue_initialized = False
+            g.all_resources = []
+
     def get_job_queue(self):
         """Get entire job queue from memcached (or app context)."""
         registry.initialize()

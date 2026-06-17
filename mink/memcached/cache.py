@@ -39,13 +39,6 @@ class Cache():
             app.logger.error(f"Failed to connect to memcached! {str(e)}")
             self.client = None
 
-    def get_queue_initialized(self):
-        """Get bool value for 'queue_initialized' from memcached (or app context)."""
-        if self.client is not None:
-            return self.client.get("queue_initialized")
-        else:
-            return g.queue_initialized
-
     def set_queue_initialized(self, is_initialized):
         """Set 'queue_initialized' to bool 'is_initialized' in memcached (or app context)."""
         if self.client is not None:
@@ -74,22 +67,6 @@ class Cache():
         # App-context fallback: the data lives in g for this request only and is
         # rebuilt on every request, so the per-request flag is authoritative.
         return g.queue_initialized
-
-    def invalidate_registry(self):
-        """Drop the registry gate and listing so the next access re-scans the disk.
-
-        The registry is loaded into the cache exactly once and never re-scans on
-        its own, so resource files written into REGISTRY_DIR afterwards (e.g. by
-        provisioning) stay invisible until memcached is flushed. Calling this
-        forces initialize() to run again, picking the filesystem (the source of
-        truth) back up without a full flush.
-        """
-        if self.client is not None:
-            self.client.delete("all_resources")
-            self.client.set("queue_initialized", False)
-        else:
-            g.queue_initialized = False
-            g.all_resources = []
 
     def get_job_queue(self):
         """Get entire job queue from memcached (or app context)."""

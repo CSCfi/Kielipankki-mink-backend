@@ -81,6 +81,13 @@ TMP_DIR = "tmp"                      # Temporary file storage
 MEMCACHED_SOCKET = "memcached.sock"  # Memcached socket file
 REGISTRY_DIR = "registry"            # Directory for storing job files
 QUEUE_FILE = "queue"                 # File to store the queue priorities
+# Durable on-disk copies of the (slowly generated) Sparv capability listings.
+# These are the sole source for the create-corpus view (not memcached), so it
+# never waits for a Sparv round-trip. Generated at deploy time by
+# generate_capabilities.py; the backend request path only reads them.
+SPARV_LANGUAGES_FILE = "sparv_languages.json"    # Cached Sparv language list
+SPARV_ANNOTATORS_FILE = "sparv_annotators.json"  # Cached Sparv annotator info
+SPARV_EXPORTS_FILE = "sparv_exports.json"        # Cached Sparv exports, keyed by language code
 
 # Settings for queue manager
 MINK_URL = "https://ws.spraakbanken.gu.se/ws/mink"  # URL for mink API

@@ -13,7 +13,7 @@ from flask import current_app as app
 
 from mink.core import exceptions, registry, utils
 from mink.core.status import JobStatuses, ProcessName, Status
-from mink.sparv import storage
+from mink.sparv import capabilities, storage
 from mink.sparv import utils as sparv_utils
 
 
@@ -602,14 +602,39 @@ class DefaultJob():
         self.remote_corpus_dir = str(sparv_utils.get_corpus_dir(self.lang, default_dir=True))
         self.config_file = app.config.get("SPARV_CORPUS_CONFIG")
 
+    def refresh_capabilities(self):
+        """Regenerate the durable on-disk listings of Sparv's languages, annotators and exports.
+
+        These listings only change when Sparv itself is (re)deployed, so they are
+        generated once at deploy time by the standalone generate_capabilities.py
+        script (run as a oneshot before the backend starts) rather than lazily per
+        request. This re-queries the Sparv host and overwrites the files
+        unconditionally, picking up any change in Sparv's offerings since the last
+        deploy. The backend request path only ever reads them (see list_*).
+        """
+        languages = self._generate_languages()
+        capabilities.set_languages(languages)
+
+        annotators = self._generate_annotators()
+        capabilities.set_annotators(annotators)
+
+        # Exports are per-language; generate them for every available language.
+        for lang in languages:
+            code = lang["code"]
+            capabilities.set_exports(code, DefaultJob(language=code)._generate_exports())
+
+        return languages, annotators
+
     def list_languages(self):
-        """List the languages available in Sparv. Result is cached in memcached."""
-        from flask import g  # noqa: PLC0415
+        """List the languages available in Sparv, read from the durable on-disk cache.
 
-        cached = g.cache.get_languages()
-        if cached is not None:
-            return cached
+        The cache is generated at deploy time (see refresh_capabilities); the
+        request path never queries Sparv. Returns [] if not generated yet.
+        """
+        return capabilities.get_languages() or []
 
+    def _generate_languages(self):
+        """Query the Sparv host for its available languages (slow: an SSH round-trip)."""
         p = utils.ssh_run(f"mkdir -p {shlex.quote(self.remote_corpus_dir)} && "
                           f"echo 'metadata:\n  language: {self.lang}' > "
                           f"{shlex.quote(self.remote_corpus_dir + '/' + self.config_file)}")
@@ -633,23 +658,23 @@ class DefaultJob():
             matchobj = re.match(r"(.+?)\s+(\S+)$", line)
             if matchobj:
                 languages.append({"name": matchobj.group(1), "code": matchobj.group(2)})
-        g.cache.set_languages(languages)
         return languages
 
     def list_annotators(self):
-        """List all annotators available in Sparv.
+        """List all annotators available in Sparv, read from the durable on-disk cache.
+
+        The cache is generated at deploy time (see refresh_capabilities); the
+        request path never queries Sparv. Returns {} if not generated yet.
+        """
+        return capabilities.get_annotators() or {}
+
+    def _generate_annotators(self):
+        """Query the Sparv host for its available annotators (slow: an SSH round-trip).
 
         Uses a seed language that activates all relevant annotator modules. Each
         annotator function carries a 'language' list, so callers can filter per
         language without needing a separate SSH call per language.
-        Result is cached in memcached.
         """
-        from flask import g  # noqa: PLC0415
-
-        cached = g.cache.get_annotators()
-        if cached is not None:
-            return cached
-
         seed_langs = app.config.get("SPARV_ANNOTATOR_SEED_LANGUAGES", ["fin"])
         sparv_env = app.config.get("SPARV_ENVIRON")
         sparv_command = f"{app.config.get('SPARV_COMMAND')} modules --annotators --json"
@@ -674,11 +699,18 @@ class DefaultJob():
             if json_start != -1:
                 data.update(json.loads(stdout[json_start:]).get("annotators", {}))
 
-        g.cache.set_annotators(data)
         return data
 
     def list_exports(self):
-        """List the available exports for the current language."""
+        """List the available exports for the current language, read from the durable cache.
+
+        The cache is generated at deploy time (see refresh_capabilities); the
+        request path never queries Sparv. Returns [] if not generated yet.
+        """
+        return capabilities.get_exports(self.lang) or []
+
+    def _generate_exports(self):
+        """Query the Sparv host for the current language's exports (slow: an SSH round-trip)."""
         # Create and corpus dir with config file on Sparv server
         p = utils.ssh_run(f"mkdir -p {shlex.quote(self.remote_corpus_dir)} && "
                           f"echo 'metadata:\n  language: {self.lang}' > "
